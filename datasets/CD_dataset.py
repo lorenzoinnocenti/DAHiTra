@@ -9,7 +9,7 @@ import cv2
 
 from torch.utils import data
 
-from datasets.data_utils import CDDataAugmentation
+from datasets.data_utils import CDDataAugmentation, CDDataAugmentation_xBD
 from sklearn.model_selection import train_test_split
 
 """
@@ -120,7 +120,6 @@ class CDDataset(ImageDataset):
         
         L_path = get_label_path(self.root_dir, self.split, self.img_name_list[index % self.A_size])
         label = np.array(Image.open(L_path), dtype=np.uint8)
-        
 
         #  二分类中，前景标注为255
         if self.label_transform == 'norm':
@@ -183,7 +182,7 @@ class xBDataset(data.Dataset):
         
         img = cv2.imread(fn, cv2.IMREAD_COLOR)
         img_B = cv2.imread(fn.replace('_pre_disaster', '_post_disaster'), cv2.IMREAD_COLOR)
-        label = cv2.imread(fn.replace('/images/', '/masks/').replace('_pre_disaster', '_post_disaster'), cv2.IMREAD_UNCHANGED)
+        label = cv2.imread(fn.replace('/images/', '/targets/').replace('_pre_disaster', '_post_disaster_target'), cv2.IMREAD_UNCHANGED)
         label[label <= 2] = 0
         label[label > 2] = 1
         [img, img_B], [label] = self.augm.transform([img, img_B], [label], to_tensor=self.to_tensor)
@@ -198,7 +197,7 @@ class xBDataset(data.Dataset):
 
 class xBDatasetMulti(data.Dataset):
     def __init__(self, root_dir, img_size, split='train', is_train=True, label_transform=None,
-                 to_tensor=True):
+                 to_tensor=True,):
         super(xBDatasetMulti, self).__init__()
 
         self.root_dir = root_dir
@@ -222,51 +221,48 @@ class xBDatasetMulti(data.Dataset):
         self.label_transform = label_transform
         self.split = split
 
-        train_dirs = ['../data/xbd/train'] # fix path!!
-        all_files = []
-        for d in train_dirs:
-            for f in sorted(os.listdir(os.path.join(d, 'images'))):
-                if ('_pre_disaster.png' in f) and (('hurricane-harvey' in f) | ('hurricane-michael' in f) | ('mexico-earthquake' in f) | ('tuscaloosa-tornado' in f) | ('palu-tsunami' in     f)):
-                    all_files.append(os.path.join(d, 'images', f))
+        if split == 'train':
+            dirs = ['./data/xBD_png/train', './data/xBD_png/tier3']
+            # dirs = ['./data/xBD_png/train']
+        elif split == 'val':
+            dirs = ['./data/xBD_png/hold',]
+        elif split == 'test':
+            dirs = ['./data/xBD_png/test',]
 
-        # Upsampling
+        files = []
+        for d in dirs:
+            for f in sorted(os.listdir(os.path.join(d, 'images'))):
+                if ('_pre_disaster.png' in f): 
+                    files.append(os.path.join(d, 'images', f))
+
+        # loading masks
         file_classes = []
-        for fn in all_files:
+        for fn in files:
             fl = np.zeros((4,), dtype=bool)
-            msk1 = cv2.imread(fn.replace('/images/', '/masks/').replace('_pre_disaster', '_post_disaster'), cv2.IMREAD_UNCHANGED)
+            msk1 = cv2.imread(fn.replace('/images/', '/targets/').replace('_pre_disaster', '_post_disaster_target'), cv2.IMREAD_UNCHANGED)
             for c in range(1, 5):
                 fl[c-1] = c in msk1
             file_classes.append(fl)
         file_classes = np.asarray(file_classes)
         for i in range(len(file_classes)):
-            im = all_files[i]
+            im = files[i]
             if file_classes[i, 1:].max():
-                all_files.append(im)
+                files.append(im)
             if file_classes[i, 1:3].max():
-                all_files.append(im)
+                files.append(im)
 
-        # train test split
-        train_idxs, val_idxs = train_test_split(np.arange(len(all_files)), test_size=0.1, random_state=10)
-        if split == 'train':
-            self.img_name_list = np.array(all_files)[train_idxs]
-        elif split == 'val':
-            self.img_name_list = np.array(all_files)[val_idxs]
-        elif split == 'test':
-            self.img_name_list = np.array(all_files)[val_idxs]
+        self.img_name_list = np.array(files)
 
 
     def __getitem__(self, index):
         fn = self.img_name_list[index]
-        
         img = cv2.imread(fn, cv2.IMREAD_COLOR)
         img_B = cv2.imread(fn.replace('_pre_disaster', '_post_disaster'), cv2.IMREAD_COLOR)
-        label = cv2.imread(fn.replace('/images/', '/masks/').replace('_pre_disaster', '_post_disaster'), cv2.IMREAD_UNCHANGED)
-
+        label = cv2.imread(fn.replace('/images/', '/targets/').replace('_pre_disaster', '_post_disaster_target'), cv2.IMREAD_UNCHANGED)
         if self.split == 'train':
-            [img, img_B], [label] = self.augm.transform([img, img_B], [label], to_tensor=self.to_tensor, is_train=True)
+            [img, img_B], [label] = self.augm.transform([img, img_B], [label], to_tensor=self.to_tensor, split='train')
         else:
-            [img, img_B], [label] = self.augm.transform([img, img_B], [label], to_tensor=self.to_tensor, is_train=False)
-
+            [img, img_B], [label] = self.augm.transform([img, img_B], [label], to_tensor=self.to_tensor)
         name = fn.split('/')[-1]
         return {'name': fn, 'A': img, 'B': img_B, 'L': label}
 

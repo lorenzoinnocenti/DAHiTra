@@ -1,13 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-
+import time 
 import utils
 from models.networks import *
-
+from tqdm import tqdm
 import torch
 import torch.optim as optim
-
+from torch.utils.tensorboard import SummaryWriter
 from misc.metric_tool import ConfuseMatrixMeter
 from models.losses import cross_entropy
 import models.losses as losses
@@ -16,12 +16,13 @@ from misc.logger_tool import Logger, Timer
 
 from utils import de_norm
 
-from models.adamw import AdamW
+import torch.nn.functional as F
 
 class CDTrainer():
 
     def __init__(self, args, dataloaders):
 
+        self.writer = SummaryWriter()
         self.dataloaders = dataloaders
 
         self.n_class = args.n_class
@@ -206,11 +207,13 @@ class CDTrainer():
     def _collect_epoch_states(self):
         scores = self.running_metric.get_scores()
         self.epoch_acc = scores['mf1']
+        self.writer.add_scalar('mf1', self.epoch_acc, self.epoch_id)
         self.logger.write('Is_training: %s. Epoch %d / %d, epoch_mF1= %.5f\n' %
               (self.is_training, self.epoch_id, self.max_num_epochs-1, self.epoch_acc))
         message = ''
         for k, v in scores.items():
             message += '%s: %.5f ' % (k, v)
+            self.writer.add_scalar(k, v, self.epoch_id)
         self.logger.write(message+'\n')
         self.logger.write('\n')
 
@@ -242,7 +245,6 @@ class CDTrainer():
 
     def _clear_cache(self):
         self.running_metric.clear()
-
 
     def _forward_pass(self, batch):
         self.batch = batch
@@ -286,12 +288,9 @@ class CDTrainer():
 
 
     def train_models(self):
-
         self._load_checkpoint()
-
         # loop over the dataset multiple times
         for self.epoch_id in range(self.epoch_to_start, self.max_num_epochs):
-
             ################## train #################
             ##########################################
             self._clear_cache()
@@ -299,7 +298,8 @@ class CDTrainer():
             self.net_G.train()  # Set model to training mode
             # Iterate over data.
             self.logger.write('lr: %0.7f\n' % self.optimizer_G.param_groups[0]['lr'])
-            for self.batch_id, batch in enumerate(self.dataloaders['train'], 0):
+            # for self.batch_id, batch in enumerate(self.dataloaders['train'], 0):
+            for self.batch_id, batch in enumerate(tqdm(self.dataloaders['train'], 0)):
                 self._forward_pass(batch)
                 # update G
                 self.optimizer_G.zero_grad()
@@ -311,8 +311,7 @@ class CDTrainer():
 
             self._collect_epoch_states()
             self._update_training_acc_curve()
-            self._update_lr_schedulers()
-
+            self._update_lr_schedulers()        
 
             ################## Eval ##################
             ##########################################

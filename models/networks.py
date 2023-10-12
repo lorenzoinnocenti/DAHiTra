@@ -141,6 +141,9 @@ def define_G(args, init_type='normal', init_gain=0.02, gpu_ids=[]):
     elif args.net_G == 'base_transformer_pos_s4_dd8_o5':
         net = BASE_Transformer(input_nc=3, output_nc=5, token_len=4, resnet_stages_num=4,
                              with_pos='learned', enc_depth=1, dec_depth=8)
+    elif args.net_G == 'smaller':
+        net = BASE_Transformer(input_nc=3, output_nc=5, token_len=4, resnet_stages_num=4,
+                             with_pos='learned', enc_depth=1, dec_depth=2)
 
     elif args.net_G == 'base_transformer_pos_s4_dd8_dedim8':
         net = BASE_Transformer(input_nc=3, output_nc=2, token_len=4, resnet_stages_num=4,
@@ -392,7 +395,6 @@ class BASE_Transformer(ResNet):
         return x
 
 
-
 class ConvReluBN(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3):
         super(ConvReluBN, self).__init__()
@@ -419,7 +421,6 @@ class ConvRelu(nn.Module):
 class ChannelAttention(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3):
         super(ChannelAttention, self).__init__()
-
         assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
         padding = 3 if kernel_size == 7 else 1
         self.conv1 = nn.Conv2d(in_channels*2, out_channels, kernel_size, padding=padding, bias=False)
@@ -469,6 +470,7 @@ class Attention(nn.Module):
 
     def forward(self, x, mask = None):
         b, n, _, h = *x.shape, self.heads
+        # h = self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
         dots = torch.einsum('bhid,bhjd->bhij', q, k) * self.scale
@@ -1198,7 +1200,7 @@ class BASE_Transformer_UNet(ResNet_UNet):
         self.conv_decode_layers = [self.conv_decode_2, self.conv_decode_3, self.conv_decode_4, self.conv_decode_5]
 
 
-        if with_pos is 'learned':
+        if with_pos == 'learned':
             self.pos_embedding_5 = nn.Parameter(torch.randn(1, self.token_len*2, dim_5))
             self.pos_embedding_4 = nn.Parameter(torch.randn(1, self.token_len*2, dim_4))
             self.pos_embedding_3 = nn.Parameter(torch.randn(1, self.token_len*2, dim_3))
@@ -1211,6 +1213,9 @@ class BASE_Transformer_UNet(ResNet_UNet):
             self.pos_embedding_decoder_5 =nn.Parameter(torch.randn(1, dim_5, 16, 16))
             self.pos_embedding_decoder_4 =nn.Parameter(torch.randn(1, dim_4, 32, 32))
             self.pos_embedding_decoder_3 =nn.Parameter(torch.randn(1, dim_3, 64, 64))
+            # self.pos_embedding_decoder_5 =nn.Parameter(torch.randn(1, dim_5, 64, 64)) 
+            # self.pos_embedding_decoder_4 =nn.Parameter(torch.randn(1, dim_4, 128, 128))
+            # self.pos_embedding_decoder_3 =nn.Parameter(torch.randn(1, dim_3, 256, 256))
             self.pos_embedding_decoder_2 =nn.Parameter(torch.randn(1, dim_2, decoder_pos_size, decoder_pos_size))
             self.pos_embedding_decoder_layers = [self.pos_embedding_decoder_2, self.pos_embedding_decoder_3, self.pos_embedding_decoder_4, self.pos_embedding_decoder_5]
 

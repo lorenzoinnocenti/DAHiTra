@@ -17,7 +17,7 @@ def cross_entropy(input, target, weight=None, reduction='mean',ignore_index=255)
     target = target.long()
     if target.dim() == 4:
         target = torch.squeeze(target, dim=1)
-    #print("pred: ", input.shape, "target: ", target.shape)
+    # print("pred: ", input.shape, "target: ", target.shape)
     if input.shape[-1] != target.shape[-1]:
         input = F.interpolate(input, size=target.shape[1:], mode='bilinear',align_corners=True)
 
@@ -100,8 +100,29 @@ def one_hot(
 
     shape = labels.shape
     one_hot = torch.zeros((shape[0], num_classes) + shape[1:], device=device, dtype=dtype)
-
-    return one_hot.scatter_(1, labels.unsqueeze(1), 1.0) + eps
+    try:
+        out = one_hot.scatter_(1, labels.unsqueeze(1), 1.0) + eps
+    except Exception as e:
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+        print(e)
+        print(labels)
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+        print('')
+    return out
     
 def focal_loss(
     input: torch.Tensor,
@@ -178,7 +199,6 @@ def focal_loss(
 
     # create the labels one hot tensor
     target_one_hot: torch.Tensor = one_hot(target, num_classes=input.shape[1], device=input.device, dtype=input.dtype)
-
     # compute the actual focal loss
     weight = torch.pow(-input_soft + 1.0, gamma)
 

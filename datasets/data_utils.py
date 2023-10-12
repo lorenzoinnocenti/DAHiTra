@@ -59,8 +59,10 @@ class CDDataAugmentation:
             self.img_size = None
 
         if split=='train':
-            x0 = random.randint(0, imgs[0].size[1] - self.img_size)
-            y0 = random.randint(0, imgs[0].size[0] - self.img_size)
+            x0 = random.randint(0, imgs[0].shape[1] - self.img_size)
+            y0 = random.randint(0, imgs[0].shape[0] - self.img_size)
+            # x0 = random.randint(0, imgs[0].size[1] - self.img_size)
+            # y0 = random.randint(0, imgs[0].size[0] - self.img_size)
         else:
             if patch:
                 x0, y0 = 256*(patch//4), 256*(patch%4)
